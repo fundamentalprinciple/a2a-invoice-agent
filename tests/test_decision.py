@@ -12,11 +12,22 @@ RATIONALE = (
 
 def test_valid_decision():
     decision = InvoiceDecision(
+        packageId="package-001",
         action="request_approval",
-        evidence_refs=REFS,
+        facts={
+            "vendorName": "Acme Supplies",
+            "invoiceNumber": "INV-2026-001",
+            "amountMinor": 125000,
+            "currency": "INR",
+        },
+        evidenceRefs=REFS,
         rationale=RATIONALE,
     )
+
     assert decision.action == "request_approval"
+    assert decision.package_id == "package-001"
+    assert decision.facts.amount_minor == 125000
+    assert decision.evidence_refs == REFS
 
 
 def test_rejects_wrong_number_of_evidence_refs():

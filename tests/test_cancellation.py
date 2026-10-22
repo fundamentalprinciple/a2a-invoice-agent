@@ -14,7 +14,7 @@ def test_cancel_task_and_reject_second_cancellation():
                 json={
                     "message": {
                         "messageId": "pytest-cancel-" + __import__("uuid").uuid4().hex,
-                        "role": "user",
+                        "role": "ROLE_USER",
                         "parts": [{"kind": "text", "text": "Cancellation test"}],
                     }
                 },
@@ -43,7 +43,7 @@ def test_cannot_cancel_another_principals_task():
                     "message": {
                         "messageId": "pytest-cancel-00"
                         + __import__("uuid").uuid4().hex,
-                        "role": "user",
+                        "role": "ROLE_USER",
                         "parts": [{"kind": "text", "text": "Owner task"}],
                     }
                 },

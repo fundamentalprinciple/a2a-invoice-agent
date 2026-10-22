@@ -41,7 +41,7 @@ def test_wrong_content_type_rejected():
                 json={
                     "message": {
                         "messageId": "pytest-protocol-001",
-                        "role": "user",
+                        "role": "ROLE_USER",
                         "parts": [{"kind": "text", "text": "Test"}],
                     }
                 },

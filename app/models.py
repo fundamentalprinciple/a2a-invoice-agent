@@ -14,9 +14,10 @@ TaskState = Literal[
 
 
 class Part(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    kind: str
+    kind: str | None = None
+    media_type: str | None = Field(default=None, alias="mediaType")
     text: str | None = None
     data: dict[str, Any] | None = None
 
@@ -25,7 +26,7 @@ class Message(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     messageId: str = Field(min_length=1)
-    role: Literal["user", "agent"]
+    role: Literal["ROLE_USER", "ROLE_AGENT"]
     parts: list[Part] = Field(min_length=1)
     contextId: str | None = None
     taskId: str | None = None
