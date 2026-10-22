@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     a2a_bearer_token: SecretStr
     public_base_url: str = "https://example.com"
     database_path: str = "./data/agent.db"
+    aipipe_model: str = "gpt-4o-mini"
 
     model_config = SettingsConfigDict(
         env_file=".env",
