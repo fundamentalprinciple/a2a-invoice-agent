@@ -24,24 +24,19 @@ if [[ ! -f .env ]]; then
 
     cp .env.example .env
     echo "Created .env from .env.example."
-    echo "Edit .env and provide your AI Pipe API key and a secure A2A bearer token."
+    echo "Edit .env and provide your AI Pipe API key."
     echo "Then run ./run.sh again."
     exit 1
 fi
 
 # 3. Ensure required credentials are configured without displaying them.
-for variable in AIPIPE_API_KEY A2A_BEARER_TOKEN; do
+for variable in AIPIPE_API_KEY; do
     if ! grep -Eq "^[[:space:]]*${variable}[[:space:]]*=[[:space:]]*[^[:space:]#]" .env; then
         echo "Error: ${variable} is missing or empty in .env."
         echo "Edit .env and try again."
         exit 1
     fi
 done
-
-if grep -Eq '^[[:space:]]*A2A_BEARER_TOKEN[[:space:]]*=[[:space:]]*["\047]?replace-with-a-long-random-secret' .env; then
-    echo "Error: Replace the example A2A bearer token in .env."
-    exit 1
-fi
 
 # 4. Install locked project dependencies and create the virtual environment.
 echo "==> Installing dependencies..."

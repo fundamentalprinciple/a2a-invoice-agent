@@ -48,6 +48,13 @@ def init_db() -> None:
                 FOREIGN KEY (task_id) REFERENCES tasks(id)
             );
 
+            CREATE TABLE IF NOT EXISTS package_decisions (
+                package_hash TEXT PRIMARY KEY,
+                package_json TEXT NOT NULL,
+                decision_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_tasks_principal
             ON tasks(principal);
         """)

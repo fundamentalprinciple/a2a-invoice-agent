@@ -47,7 +47,7 @@ def valid_decisions():
                         "[policy:3]",
                     ],
                     "rationale": (
-                        "The invoice requires approval under the supplied policy. "
+                        "The request_approval action is required under the supplied policy. "
                         "[invoice:42] and [policy:3] support this decision."
                     ),
                 }
@@ -57,20 +57,21 @@ def valid_decisions():
 
 
 def mock_client(parsed=None, refusal=None, side_effect=None):
-    message = SimpleNamespace(parsed=parsed, refusal=refusal)
+    content = parsed.model_dump_json(by_alias=True) if parsed is not None else None
+    message = SimpleNamespace(content=content, refusal=refusal)
     response = SimpleNamespace(choices=[SimpleNamespace(message=message)])
-    mock_parse = AsyncMock(return_value=response, side_effect=side_effect)
+    mock_create = AsyncMock(return_value=response, side_effect=side_effect)
     client = SimpleNamespace(
         chat=SimpleNamespace(
-            completions=SimpleNamespace(parse=mock_parse)
+            completions=SimpleNamespace(create=mock_create)
         )
     )
-    return client, mock_parse
+    return client, mock_create
 
 
 @pytest.mark.asyncio
 async def test_decide_batch_returns_proposals(valid_batch, valid_decisions):
-    client, mock_parse = mock_client(parsed=valid_decisions)
+    client, mock_create = mock_client(parsed=valid_decisions)
 
     with (
         patch("app.decision_service.get_llm_client", return_value=client),
@@ -85,7 +86,7 @@ async def test_decide_batch_returns_proposals(valid_batch, valid_decisions):
     assert proposal["packageId"] == "package-001"
     assert proposal["action"] == "request_approval"
     assert len(proposal["actionId"]) >= 12
-    mock_parse.assert_awaited_once()
+    mock_create.assert_awaited_once()
 
 
 @pytest.mark.asyncio

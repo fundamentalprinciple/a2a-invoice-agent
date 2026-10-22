@@ -15,8 +15,8 @@ def test_llm_client_uses_aipipe_configuration():
     mock_client.assert_called_once_with(
         api_key=settings.aipipe_api_key.get_secret_value(),
         base_url=settings.aipipe_base_url,
-        timeout=30.0,
-        max_retries=2,
+        timeout=40.0,
+        max_retries=1,
     )
     assert client == mock_client.return_value
 

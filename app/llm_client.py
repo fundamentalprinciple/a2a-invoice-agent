@@ -12,6 +12,6 @@ def get_llm_client() -> AsyncOpenAI:
     return AsyncOpenAI(
         api_key=settings.aipipe_api_key.get_secret_value(),
         base_url=settings.aipipe_base_url,
-        timeout=30.0,
-        max_retries=2,
+        timeout=40.0,
+        max_retries=1,
     )

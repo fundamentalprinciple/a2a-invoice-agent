@@ -34,7 +34,7 @@ def test_same_message_returns_same_task():
 
             assert first.status_code == 200
             assert second.status_code == 200
-            assert first.json()["id"] == second.json()["id"]
+            assert first.json()["task"]["id"] == second.json()["task"]["id"]
 
     run_with_fresh_database(check)
 

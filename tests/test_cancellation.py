@@ -20,7 +20,7 @@ def test_cancel_task_and_reject_second_cancellation():
                 },
             )
             assert created.status_code == 200
-            task_id = created.json()["id"]
+            task_id = created.json()["task"]["id"]
 
             canceled = client.post(f"/tasks/{task_id}:cancel")
             assert canceled.status_code == 200
@@ -48,7 +48,7 @@ def test_cannot_cancel_another_principals_task():
                     }
                 },
             )
-            task_id = created.json()["id"]
+            task_id = created.json()["task"]["id"]
 
             app.dependency_overrides[authenticate] = lambda: "pytest-other"
             response = client.post(f"/tasks/{task_id}:cancel")

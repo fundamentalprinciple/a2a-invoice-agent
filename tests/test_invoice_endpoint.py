@@ -61,8 +61,8 @@ def test_invoice_batch_proposal_and_replay():
 
                 assert first.status_code == 200, first.text
                 assert second.status_code == 200, second.text
-                assert first.json()["id"] == second.json()["id"]
-                artifact = first.json()["artifacts"][0]
+                assert first.json()["task"]["id"] == second.json()["task"]["id"]
+                artifact = first.json()["task"]["artifacts"][0]
                 assert artifact["parts"][0]["mediaType"] == (
                     "application/vnd.ga5.invoice-action-proposals+json"
                 )

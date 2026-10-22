@@ -64,6 +64,82 @@ def get_message_replay(
     return row["task_id"], digest
 
 
+def complete_task_once(
+    principal: str,
+    message: dict[str, Any],
+    task_id: str,
+    final_task: dict[str, Any],
+) -> tuple[str, dict[str, Any]]:
+    """Atomically claim a continuation message and move its task to terminal."""
+    message_id = message["messageId"]
+    digest = message_hash(message)
+    now = now_iso()
+
+    with get_connection() as db:
+        db.execute("BEGIN IMMEDIATE")
+
+        existing = db.execute(
+            """
+            SELECT message_hash, task_id FROM messages
+            WHERE principal = ? AND message_id = ?
+            """,
+            (principal, message_id),
+        ).fetchone()
+
+        if existing:
+            if existing["message_hash"] != digest:
+                db.rollback()
+                raise ValueError("IDEMPOTENCY_CONFLICT")
+
+            row = db.execute(
+                "SELECT task_json FROM tasks WHERE id = ? AND principal = ?",
+                (existing["task_id"], principal),
+            ).fetchone()
+            db.commit()
+            if row is None:
+                raise ValueError("TASK_NOT_FOUND")
+            return "replay", json.loads(row["task_json"])
+
+        row = db.execute(
+            "SELECT task_json FROM tasks WHERE id = ? AND principal = ?",
+            (task_id, principal),
+        ).fetchone()
+
+        if row is None:
+            db.rollback()
+            raise ValueError("TASK_NOT_FOUND")
+
+        current = json.loads(row["task_json"])
+        if current["status"]["state"] != "TASK_STATE_INPUT_REQUIRED":
+            db.rollback()
+            raise ValueError("TASK_STATE_CONFLICT")
+
+        db.execute(
+            """
+            INSERT INTO messages (principal, message_id, message_hash, task_id)
+            VALUES (?, ?, ?, ?)
+            """,
+            (principal, message_id, digest, task_id),
+        )
+        db.execute(
+            """
+            UPDATE tasks
+            SET state = ?, task_json = ?, updated_at = ?
+            WHERE id = ? AND principal = ?
+            """,
+            (
+                final_task["status"]["state"],
+                json.dumps(final_task, sort_keys=True, separators=(",", ":")),
+                now,
+                task_id,
+                principal,
+            ),
+        )
+        db.commit()
+
+    return "completed", final_task
+
+
 def create_task_once(
     principal: str,
     message: dict[str, Any],

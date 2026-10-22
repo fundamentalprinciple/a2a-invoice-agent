@@ -5,7 +5,8 @@ from app.decision import InvoiceDecision
 
 REFS = ["[invoice:INV-42]", "[vendor:V-7]", "[policy:P-3]"]
 RATIONALE = (
-    "The invoice matches the vendor record and policy requirements. "
+    "The request_approval action applies because the invoice matches "
+    "the vendor record and policy requirements. "
     "[invoice:INV-42] and [vendor:V-7] support this decision."
 )
 
