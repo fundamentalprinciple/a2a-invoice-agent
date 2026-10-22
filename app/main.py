@@ -1,3 +1,4 @@
+import asyncio
 import json
 import uuid
 from contextlib import asynccontextmanager
@@ -10,7 +11,7 @@ from app.auth import authenticate
 from app.database import get_connection, init_db
 from app.decision_service import DecisionServiceError, decide_batch
 from app.models import Message
-from app.task_store import create_task_once, get_task
+from app.task_store import create_task_once, delete_failed_task, get_task
 
 
 @asynccontextmanager
@@ -57,6 +58,25 @@ async def health():
 async def agent_card():
     return JSONResponse(AGENT_CARD)
 
+async def wait_for_task(
+    task_id: str,
+    principal: str,
+    timeout: float = 60,
+) -> dict | None:
+    deadline = asyncio.get_running_loop().time() + timeout
+
+    while asyncio.get_running_loop().time() < deadline:
+        task = get_task(task_id, principal)
+
+        if task is None:
+            return None
+
+        if task["status"]["state"] != "TASK_STATE_WORKING":
+            return task
+
+        await asyncio.sleep(0.05)
+
+    return None
 
 @app.post("/message:send")
 async def send_message(
@@ -96,7 +116,7 @@ async def send_message(
     task = {
         "id": task_id,
         "contextId": message.contextId or str(uuid.uuid4()),
-        "status": {"state": "TASK_STATE_INPUT_REQUIRED"},
+        "status": {"state": "TASK_STATE_WORKING"},
         "artifacts": [],
         "history": [message_data],
     }
@@ -108,29 +128,33 @@ async def send_message(
             raise HTTPException(status_code=409, detail="IDEMPOTENCY_CONFLICT")
         raise
 
-    if outcome == "replay":
+    while outcome == "replay":
         if replay is None:
             raise HTTPException(status_code=500, detail="Stored task missing")
-        return JSONResponse(replay)
 
+        if replay["status"]["state"] != "TASK_STATE_WORKING":
+            return JSONResponse(replay)
+
+        replay = await wait_for_task(replay["id"], principal)
+        if replay is not None:
+            return JSONResponse(replay)
+
+        # The previous owner may have failed and released its claim.
+        try:
+            outcome, replay = create_task_once(principal, message_data, task)
+        except ValueError as exc:
+            if str(exc) == "IDEMPOTENCY_CONFLICT":
+                raise HTTPException(status_code=409, detail="IDEMPOTENCY_CONFLICT")
+            raise
     if batch is not None:
         try:
             proposals = await decide_batch(batch)
         except DecisionServiceError as exc:
             # Remove the failed task and its message key, allowing a retry.
-            with get_connection() as db:
-                db.execute("BEGIN IMMEDIATE")
-                db.execute(
-                    "DELETE FROM messages WHERE principal = ? AND message_id = ?",
-                    (principal, message.messageId),
-                )
-                db.execute(
-                    "DELETE FROM tasks WHERE id = ? AND principal = ?",
-                    (task_id, principal),
-                )
-                db.commit()
+            delete_failed_task(principal, message.messageId, task_id)
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+        task["status"]["state"] = "TASK_STATE_INPUT_REQUIRED"
         task["artifacts"] = [{
             "artifactId": str(uuid.uuid4()),
             "name": "Invoice action proposals",
@@ -161,6 +185,23 @@ async def send_message(
                    SET task_json = ?, updated_at = ?
                    WHERE id = ? AND principal = ?""",
                 (
+                    json.dumps(task, sort_keys=True, separators=(",", ":")),
+                    datetime.now(UTC).isoformat(),
+                    task_id,
+                    principal,
+                ),
+            )
+            db.commit()
+
+    if batch is None:
+        task["status"]["state"] = "TASK_STATE_INPUT_REQUIRED"
+        with get_connection() as db:
+            db.execute(
+                """UPDATE tasks
+                   SET state = ?, task_json = ?, updated_at = ?
+                   WHERE id = ? AND principal = ?""",
+                (
+                    "TASK_STATE_INPUT_REQUIRED",
                     json.dumps(task, sort_keys=True, separators=(",", ":")),
                     datetime.now(UTC).isoformat(),
                     task_id,

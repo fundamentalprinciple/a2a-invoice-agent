@@ -51,8 +51,7 @@ def get_message_replay(
     with get_connection() as db:
         row = db.execute(
             """
-            SELECT message_hash, task_id
-            FROM messages
+            SELECT message_hash, task_id FROM messages
             WHERE principal = ? AND message_id = ?
             """,
             (principal, message_id),
@@ -70,7 +69,7 @@ def create_task_once(
     message: dict[str, Any],
     task: dict[str, Any],
 ) -> tuple[str, dict[str, Any] | None]:
-    """Return ('created', None), ('replay', task), or raise ValueError on conflict."""
+    """Atomically claim a message ID and create its initial task."""
     message_id = message["messageId"]
     digest = message_hash(message)
     now = now_iso()
@@ -80,8 +79,7 @@ def create_task_once(
 
         existing = db.execute(
             """
-            SELECT message_hash, task_id
-            FROM messages
+            SELECT message_hash, task_id FROM messages
             WHERE principal = ? AND message_id = ?
             """,
             (principal, message_id),
@@ -123,3 +121,18 @@ def create_task_once(
         db.commit()
 
     return "created", None
+
+
+def delete_failed_task(principal: str, message_id: str, task_id: str) -> None:
+    """Release an idempotency claim after decision processing fails."""
+    with get_connection() as db:
+        db.execute("BEGIN IMMEDIATE")
+        db.execute(
+            "DELETE FROM messages WHERE principal = ? AND message_id = ? AND task_id = ?",
+            (principal, message_id, task_id),
+        )
+        db.execute(
+            "DELETE FROM tasks WHERE id = ? AND principal = ?",
+            (task_id, principal),
+        )
+        db.commit()
